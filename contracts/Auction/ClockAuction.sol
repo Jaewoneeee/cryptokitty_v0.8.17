@@ -8,15 +8,11 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract ClockAuction is Pausable, Ownable, ClockAuctionBase {
     constructor(address _nftAddress, uint256 _cut) {
-        require(_cut <= 10000, "_cut should be smaller tha or equal to 10000");
+        require(_cut <= 10000, "_cut should be smaller than or equal to 10000");
         ownerCut = _cut;
-
+        
         IERC721 candidateContract = IERC721(_nftAddress);
-        // type함수는 기본타입에 더해 인터페이스의 내용에도 사용할 수 있다.
-        require(
-            candidateContract.supportsInterface(type(IERC721).interfaceId),
-            "this contract doesn't supports ERC721 standard"
-        );
+        require(candidateContract.supportsInterface(type(IERC721).interfaceId), "this contract doesn't supports ERC721 standard");
         nonFungibleContract = candidateContract;
     }
 

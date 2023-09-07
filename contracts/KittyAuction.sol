@@ -10,7 +10,7 @@ contract KittyAuction is KittyOwnership {
     SaleClockAuction public saleAuction;
 
     function setSaleAuctionAddress(address _address) public onlyCEO {
-        SaleClockAuction candidateContract = SaleClockAuction(payable(_address));
+        SaleClockAuction candidateContract = SaleClockAuction(_address);
 
         require(candidateContract.isSaleClockAuction());
 
@@ -29,7 +29,7 @@ contract KittyAuction is KittyOwnership {
     {
         require(_owns(msg.sender, _kittyId));
 
-        _approve(address (saleAuction), _kittyId);
+        _approve(address(saleAuction), _kittyId);
 
         saleAuction.createAuction(
             _kittyId,
