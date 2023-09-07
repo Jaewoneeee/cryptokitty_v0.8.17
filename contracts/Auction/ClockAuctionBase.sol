@@ -4,8 +4,7 @@ pragma solidity ^0.8.17;
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
-/// @title Auction Core
-/// @dev Contains models, variables, and internal methods for the auction.
+
 contract ClockAuctionBase is ERC721Holder {
 
     // Represents an auction on an NFT
@@ -52,35 +51,20 @@ contract ClockAuctionBase is ERC721Holder {
         _;
     }
 
-    /// @dev Returns true if the claimant owns the token.
-    /// @param _claimant - Address claiming to own the token.
-    /// @param _tokenId - ID of token whose ownership to verify.
     function _owns(address _claimant, uint256 _tokenId) internal view returns (bool) {
         return (nonFungibleContract.ownerOf(_tokenId) == _claimant);
     }
 
-    /// @dev Escrows the NFT, assigning ownership to this contract.
-    /// Throws if the escrow fails.
-    /// @param _owner - Current owner address of token to escrow.
-    /// @param _tokenId - ID of token whose approval to verify.
     function _escrow(address _owner, uint256 _tokenId) internal {
         // it will throw if transfer fails
         nonFungibleContract.safeTransferFrom(_owner, address(this), _tokenId);
     }
 
-    /// @dev Transfers an NFT owned by this contract to another address.
-    /// Returns true if the transfer succeeds.
-    /// @param _receiver - Address to transfer NFT to.
-    /// @param _tokenId - ID of token to transfer.
     function _transfer(address _receiver, uint256 _tokenId) internal {
         // it will throw if transfer fails
         nonFungibleContract.safeTransferFrom(address(this), _receiver, _tokenId);
     }
 
-    /// @dev Adds an auction to the list of open auctions. Also fires the
-    ///  AuctionCreated event.
-    /// @param _tokenId The ID of the token to be put on auction.
-    /// @param _auction Auction to add.
     function _addAuction(uint256 _tokenId, Auction memory _auction) internal {
         // Require that all auctions have a duration of
         // at least one minute. (Keeps our math from getting hairy!)
@@ -96,15 +80,12 @@ contract ClockAuctionBase is ERC721Holder {
         );
     }
 
-    /// @dev Cancels an auction unconditionally.
     function _cancelAuction(uint256 _tokenId, address _seller) internal {
         _removeAuction(_tokenId);
         _transfer(_seller, _tokenId);
         emit AuctionCancelled(_tokenId);
     }
 
-    /// @dev Computes the price and transfers winnings.
-    /// Does NOT transfer ownership of token.
     function _bid(uint256 _tokenId, uint256 _bidAmount)
         internal
         returns (uint256)
@@ -133,21 +114,9 @@ contract ClockAuctionBase is ERC721Holder {
 
         // Transfer proceeds to seller (if there are any!)
         if (price > 0) {
-            //  Calculate the auctioneer's cut.
-            // (NOTE: _computeCut() is guaranteed to return a
-            //  value <= price, so this subtraction can't go negative.)
             uint256 auctioneerCut = _computeCut(price);
             uint256 sellerProceeds = price - auctioneerCut;
 
-            // NOTE: Doing a transfer() in the middle of a complex
-            // method like this is generally discouraged because of
-            // reentrancy attacks and DoS attacks if the seller is
-            // a contract with an invalid fallback function. We explicitly
-            // guard against reentrancy attacks by removing the auction
-            // before calling transfer(), and the only thing the seller
-            // can DoS is the sale of their own asset! (And if it's an
-            // accident, they can call cancelAuction(). )
-           
             (bool success, ) = payable(seller).call{value:sellerProceeds}("");
             require(success, "Failed to send sellerProceeds to seller");
         }
@@ -158,22 +127,14 @@ contract ClockAuctionBase is ERC721Holder {
         return price;
     }
 
-    /// @dev Removes an auction from the list of open auctions.
-    /// @param _tokenId - ID of NFT on auction.
     function _removeAuction(uint256 _tokenId) internal {
         delete tokenIdToAuction[_tokenId];
     }
 
-    /// @dev Returns true if the NFT is on auction.
-    /// @param _auction - Auction to check.
     function _isOnAuction(Auction storage _auction) internal view returns (bool) {
         return (_auction.startedAt > 0);
     }
 
-    /// @dev Returns current price of an NFT on auction. Broken into two
-    ///  functions (this one, that computes the duration from the auction
-    ///  structure, and the other that does the price computation) so we
-    ///  can easily test that the price computation works correctly.
     function _currentPrice(Auction storage _auction)
         internal
         view
@@ -181,9 +142,6 @@ contract ClockAuctionBase is ERC721Holder {
     {
         uint256 secondsPassed = 0;
         
-        // A bit of insurance against negative values (or wraparound).
-        // Probably not necessary (since Ethereum guarnatees that the
-        // now variable doesn't ever go backwards).
         if (block.timestamp > _auction.startedAt) {
             secondsPassed = block.timestamp - _auction.startedAt;
         }
@@ -196,10 +154,6 @@ contract ClockAuctionBase is ERC721Holder {
         );
     }
 
-    /// @dev Computes the current price of an auction. Factored out
-    ///  from _currentPrice so we can run extensive unit tests.
-    ///  When testing, make this function public and turn on
-    ///  `Current price computation` test suite.
     function _computeCurrentPrice(
         uint256 _startingPrice,
         uint256 _endingPrice,
@@ -210,11 +164,6 @@ contract ClockAuctionBase is ERC721Holder {
         pure
         returns (uint256)
     {
-        // NOTE: We don't use SafeMath (or similar) in this function because
-        //  all of our public functions carefully cap the maximum values for
-        //  time (at 64-bits) and currency (at 128-bits). _duration is
-        //  also known to be non-zero (see the require() statement in
-        //  _addAuction())
         if (_secondsPassed >= _duration) {
             // We've reached the end of the dynamic pricing portion
             // of the auction, just return the end price.
